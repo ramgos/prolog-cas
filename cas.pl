@@ -8,6 +8,11 @@ silent(G) :-
 % Simplification
 % -----------------------------------------------------------------------%
 
+reduced([X, /, Y], [W, /, Z]) :-
+    Gcd is gcd(X, Y),
+    W is X / Gcd,
+    Z is Y / Gcd.
+
 sum_(A, B, [A, +, B]).
 sum_(A, B, [B, +, A]).
 sum_(A, B, 0) :-
@@ -25,8 +30,8 @@ simplify(A, 0) :-
     product(_, 0, A).
 
 % same identites
-simplify(A, A) :-
-    sum_(_, 0, A).
+simplify(A, As) :-
+    sum_(As, 0, A).
 simplify(A, As) :-
     product(As, 1, A).
 simplify([A, ^, 1], A).
@@ -127,6 +132,8 @@ partial_eval([A, O, B], V) :-
     nunify(B, [_, _, _]),
     silent(EvalExp =.. [O, A, B]),
     silent(V #= EvalExp).
+partial_eval([A, /, B], [C, /, D]) :-
+    silent(reduced([A, /, B], [C, /, D])).
 partial_eval([A0, O, B0], [A, O, B]) :-
     \+
     (   silent(EvalExp =.. [O, A0, B0]),
