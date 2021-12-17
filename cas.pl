@@ -85,59 +85,77 @@ simplify([[B, ^, A], *, [C, ^, A]], [D, ^, A]) :-
     product(B, C, D).
 simplify([[B, ^, A], /, [C, ^, A]], [[B, \, C], ^, A]).
 
-% product of two divisions
-simplify([[A, /, B], *, [C, /, D]], [Ac / Bd]) :-
-    product(A, C, Ac),
-    product(B, D, Bd).
+% division and multiplication of fractions
+simplify([[A, *, B], /, C], [A, *, [B, /, C]]).
+simplify([[A, *, B], /, [C, *, D]], [E, /, F]) :-
+    product(A, D, E),
+    product(B, C, F).
+simplify(A, [[D, *, B], /, C]) :-
+    product([B, /, C], D, A).
+simplify([[A, /, B], /, C], [A, /, D]) :-
+    product(B, C, D).
 
 
-simplify_exp_(X, X) :-
+simplify_exp_(X, X, _) :-
     nunify(X, [_, _, _]).
-simplify_exp_([A, O, B], Simplified) :-
+simplify_exp_([A, O, B], Simplified, _) :-
     nunify(A, [_, _, _]),
     nunify(B, [_, _, _]),
     simplify([A, O, B], Simplified).
-simplify_exp_([A, O, B], Simplified) :-
+simplify_exp_([A, O, B], Simplified, Seen) :-
+    append([[A, O, B]], Seen, NewSeen),
     (   A = [_, _, _]
     ;   A \= [_, _, _],
         B = [_, _, _]
     ),
-    simplify_exp_(A, As),
-    simplify_exp_(B, Bs),
+    maplist(dif(Simplified), NewSeen),
+    simplify_exp_(A, As, []),
+    simplify_exp_(B, Bs, []),
     (   simplify([As, O, Bs], Simplified)
     ;   dif([A, B], [As, Bs]),
-        simplify_exp_([As, O, Bs], Simplified)
+        simplify_exp_([As, O, Bs], Simplified, NewSeen)
     ).
-simplify_exp_([A, O, B], [A, O, B]) :-
+simplify_exp_([A, O, B], [A, O, B], Seen) :-
     dif(A, As), dif(B, Bs),
-    \+ simplify_exp_(A, As),
-    \+ simplify_exp_(B, Bs).
+    \+ simplify_exp_(A, As, Seen),
+    \+ simplify_exp_(B, Bs, Seen).
 
 
-simplify_exp(X, Y) :-
+simplify_exp(X, Y, Seen) :-
+    dif(X, X1),
+    maplist(dif(X1), Seen),
+    partial_eval(X, X0),
+    simplify_exp_(X0, X1, []),
+    append([X1], Seen, NewSeen),
+    simplify_exp(X1, Y, NewSeen).
+simplify_exp(X, X, Seen) :-
     dif(X, X1),
     partial_eval(X, X0),
-    simplify_exp_(X0, X1),
-    simplify_exp(X1, Y).
-simplify_exp(X, X) :-
-    dif(X, X1),
-    partial_eval(X, X0),
-    \+ simplify_exp_(X0, X1).
+    \+ simplify_exp_(X0, X1, Seen).
 
 
 partial_eval(X, X) :-
     nunify(X, [_, _, _]).
 partial_eval([A, O, B], V) :-
+    silent(V #>= 0),
     nunify(A, [_, _, _]),
     nunify(B, [_, _, _]),
     silent(EvalExp =.. [O, A, B]),
     silent(V #= EvalExp).
+partial_eval([A, O, B], V) :-
+    silent(V0 #=< 0),
+    nunify(A, [_, _, _]),
+    nunify(B, [_, _, _]),
+    silent(EvalExp =.. [O, A, B]),
+    silent(V0 #= EvalExp),
+    silent(V1 #= -1 * V0),
+    product(V1, -1, V).
 partial_eval([A, /, B], [C, /, D]) :-
     silent(reduced([A, /, B], [C, /, D])).
 partial_eval([A0, O, B0], [A, O, B]) :-
     \+
     (   silent(EvalExp =.. [O, A0, B0]),
-        silent(_ #= EvalExp)
+        silent(A #= EvalExp)
     ),
     partial_eval(A0, A),
     partial_eval(B0, B).
